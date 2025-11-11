@@ -6,9 +6,10 @@ const cors = require('cors')
 app.use(cors())
 
 app.use(express.static('dist'))
+
 // Crear token personalizado para Morgan
 morgan.token('post-data', (req) => {
-  if (req.method === 'POST') {
+  if (req.method === 'POST' || req.method === 'PUT') {
     return JSON.stringify(req.body)
   }
   return ''
@@ -99,7 +100,6 @@ app.delete('/api/persons/:id', (request, response) => {
     response.status(204).end()
 })
 
-
 //crear una nueva persona
 app.post('/api/persons', (request, response) =>{
     const person = request.body
@@ -125,6 +125,80 @@ app.post('/api/persons', (request, response) =>{
     persons = persons.concat(person)
     response.json(person)
 })
+
+// ACTUALIZAR UNA PERSONA EXISTENTE (NUEVA FUNCIÓN)
+app.put('/api/persons/:id', (request, response) => {
+    const id = Number(request.params.id)
+    const { name, number } = request.body
+    
+    // Validar que vengan los datos requeridos
+    if (!name || !number) {
+        return response.status(400).json({error: 'name and number are required'})
+    }
+    
+    // Buscar la persona por ID
+    const existingPerson = persons.find(p => p.id === id)
+    
+    if (!existingPerson) {
+        return response.status(404).json({error: 'Person not found'})
+    }
+    
+    // Verificar que el nombre no exista en OTRA persona (excepto la actual)
+    const nameExists = persons.find(p => 
+        p.name.toLowerCase() === name.toLowerCase() && p.id !== id
+    )
+    
+    if (nameExists) {
+        return response.status(400).json({error: 'name must be unique'})
+    }
+    
+    // Actualizar la persona
+    const updatedPerson = { 
+        ...existingPerson, 
+        name: name, 
+        number: number 
+    }
+    
+    persons = persons.map(p => p.id === id ? updatedPerson : p)
+    
+    response.json(updatedPerson)
+})
+
+// OPCIÓN ALTERNATIVA: PATCH para actualización parcial
+app.patch('/api/persons/:id', (request, response) => {
+    const id = Number(request.params.id)
+    const { name, number } = request.body
+    
+    // Buscar la persona por ID
+    const existingPerson = persons.find(p => p.id === id)
+    
+    if (!existingPerson) {
+        return response.status(404).json({error: 'Person not found'})
+    }
+    
+    // Verificar unicidad del nombre si se está actualizando
+    if (name) {
+        const nameExists = persons.find(p => 
+            p.name.toLowerCase() === name.toLowerCase() && p.id !== id
+        )
+        
+        if (nameExists) {
+            return response.status(400).json({error: 'name must be unique'})
+        }
+    }
+    
+    // Actualizar solo los campos proporcionados
+    const updatedPerson = { 
+        ...existingPerson, 
+        ...(name && { name }), // Solo actualiza si name existe
+        ...(number && { number }) // Solo actualiza si number existe
+    }
+    
+    persons = persons.map(p => p.id === id ? updatedPerson : p)
+    
+    response.json(updatedPerson)
+})
+
 const badPath = (request, response, next) => {
     response.status(404).send({error: 'Ruta desconocida'})
 }
