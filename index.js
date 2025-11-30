@@ -1,6 +1,8 @@
+require('dotenv').config()
 const express = require("express") //libreria
 const morgan = require("morgan") //importar morgan
 const app = express() //levantar
+const Person = require('./models/person')
 //le agregué
 const cors = require('cors')
 app.use(cors())
@@ -30,7 +32,7 @@ const requestLogger = (request, response, next) => {
 
 app.use(requestLogger)
 */
-
+/*
 let persons = [
     {
         id: 1,
@@ -53,14 +55,17 @@ let persons = [
         number : "39-23-6423122"
     }
 ]
+    */
 
 //pagina principal
 app.get('/', (request, response) => {
     response.send('<h1>API REST FROM Notes</h1>')
 })
 
-//paso 2
+
+// INFO ENDPOINT - ACTUALIZADO
 app.get('/info', (request, response) => {
+  Person.find({}).then(persons => {
     const currentTime = new Date().toString();
     const phonebookEntries = persons.length;
     
@@ -72,137 +77,105 @@ app.get('/info', (request, response) => {
     `;
     
     response.send(infoHTML);
+  })
 })
 
-//lista todas las notas
+// GET TODAS LAS PERSONAS - ACTUALIZADA
 app.get('/api/persons', (request, response) => {
+  Person.find({}).then(persons => {
     response.json(persons)
+  })
 })
 
-//Obtener una nota especifica
-app.get('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const person = persons.find(x => x.id === id)
-    //response.json(person)
-    if (person){
+// Obtener una persona específica - ACTUALIZADO
+app.get('/api/persons/:id', (request, response, next) => {
+  Person.findById(request.params.id)
+    .then(person => {
+      if (person) {
         response.json(person)
-    }
-    else {
+      } else {
         response.status(404).end()
-    }
+      }
+    })
+    .catch(error => next(error))
 })
 
-//Eliminar una nota
-app.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    persons = persons.filter(x => x.id !== id)//solo estamos simulando el borrado
-    //console.log('Delete', id);
-    response.status(204).end()
+
+
+// Eliminar una persona - ACTUALIZADO
+app.delete('/api/persons/:id', (request, response, next) => {
+  Person.findByIdAndDelete(request.params.id)
+    .then(() => {
+      response.status(204).end()
+    })
+    .catch(error => next(error))
 })
 
-//crear una nueva persona
-app.post('/api/persons', (request, response) =>{
-    const person = request.body
-    
-    //verificar si falta nombre o número
-    if (!person.name) {
-        return response.status(400).json({error: 'name is missing'})
-    }
-    
-    if (!person.number) {
-        return response.status(400).json({error: 'number is missing'})
-    }
-    
-    //verificar si el nombre ya existe en la agenda
-    const nameExists = persons.find(p => p.name.toLowerCase() === person.name.toLowerCase())
-    if (nameExists) {
-        return response.status(400).json({error: 'name must be unique'})
-    }
-    
-    //generar ID aleatorio
-    person.id = Math.floor(Math.random() * 1000000) + 1
-    
-    persons = persons.concat(person)
-    response.json(person)
+// Crear una nueva persona - ACTUALIZADO
+app.post('/api/persons', (request, response, next) => {
+  const body = request.body
+
+  if (!body.name || !body.number) {
+    return response.status(400).json({ 
+      error: 'nonmre y numero son requeridos' 
+    })
+  }
+
+  const person = new Person({
+    name: body.name,
+    number: body.number,
+  })
+
+  person.save()
+    .then(savedPerson => {
+      response.json(savedPerson)
+    })
+    .catch(error => next(error))
 })
 
-// ACTUALIZAR UNA PERSONA EXISTENTE (NUEVA FUNCIÓN)
-app.put('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const { name, number } = request.body
-    
-    // Validar que vengan los datos requeridos
-    if (!name || !number) {
-        return response.status(400).json({error: 'name and number are required'})
-    }
-    
-    // Buscar la persona por ID
-    const existingPerson = persons.find(p => p.id === id)
-    
-    if (!existingPerson) {
-        return response.status(404).json({error: 'Person not found'})
-    }
-    
-    // Verificar que el nombre no exista en OTRA persona (excepto la actual)
-    const nameExists = persons.find(p => 
-        p.name.toLowerCase() === name.toLowerCase() && p.id !== id
-    )
-    
-    if (nameExists) {
-        return response.status(400).json({error: 'name must be unique'})
-    }
-    
-    // Actualizar la persona
-    const updatedPerson = { 
-        ...existingPerson, 
-        name: name, 
-        number: number 
-    }
-    
-    persons = persons.map(p => p.id === id ? updatedPerson : p)
-    
-    response.json(updatedPerson)
-})
+// Actualizar persona - ACTUALIZADO
+app.put('/api/persons/:id', (request, response, next) => {
+  const { name, number } = request.body
 
-// OPCIÓN ALTERNATIVA: PATCH para actualización parcial
-app.patch('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const { name, number } = request.body
-    
-    // Buscar la persona por ID
-    const existingPerson = persons.find(p => p.id === id)
-    
-    if (!existingPerson) {
-        return response.status(404).json({error: 'Person not found'})
-    }
-    
-    // Verificar unicidad del nombre si se está actualizando
-    if (name) {
-        const nameExists = persons.find(p => 
-            p.name.toLowerCase() === name.toLowerCase() && p.id !== id
-        )
-        
-        if (nameExists) {
-            return response.status(400).json({error: 'name must be unique'})
-        }
-    }
-    
-    // Actualizar solo los campos proporcionados
-    const updatedPerson = { 
-        ...existingPerson, 
-        ...(name && { name }), // Solo actualiza si name existe
-        ...(number && { number }) // Solo actualiza si number existe
-    }
-    
-    persons = persons.map(p => p.id === id ? updatedPerson : p)
-    
-    response.json(updatedPerson)
+  Person.findByIdAndUpdate(
+    request.params.id,
+    { name, number },
+    { new: true, runValidators: true, context: 'query' }
+  )
+    .then(updatedPerson => {
+      response.json(updatedPerson)
+    })
+    .catch(error => next(error))
 })
-
+/*
 const badPath = (request, response, next) => {
     response.status(404).send({error: 'Ruta desconocida'})
 }
 app.use(badPath)
+*/
+
+// MANEJO DE ERRORES
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } else if (error.name === 'ValidationError') {
+    return response.status(400).json({ error: error.message })
+  }
+
+  next(error)
+}
+
+app.use(errorHandler)
+
+// RUTA NO ENCONTRADA - ACTUALIZADO
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
+app.use(unknownEndpoint)
+
 
 const PORT = process.env.PORT || 3001
 
