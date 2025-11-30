@@ -57,11 +57,12 @@ let persons = [
 ]
     */
 
+/*
 //pagina principal
 app.get('/', (request, response) => {
-    response.send('<h1>Agenda API</h1><p>Frontend served from /</p>')
+    response.send('<h1>API REST FROM Notes</h1>')
 })
-
+*/
 
 // INFO ENDPOINT - ACTUALIZADO
 app.get('/info', (request, response) => {
